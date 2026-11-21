@@ -133,6 +133,17 @@ impl Canvas {
     pub fn data(&self) -> &[u8] {
         self.pixmap.data()
     }
+    /// Draws another canvas with its top-left corner at pixel `(x, y)` (clips to this canvas).
+    pub fn blit(&mut self, other: &Canvas, x: i32, y: i32) {
+        self.pixmap.draw_pixmap(
+            x,
+            y,
+            other.pixmap.as_ref(),
+            &tiny_skia::PixmapPaint::default(),
+            Transform::identity(),
+            None,
+        );
+    }
     /// Fills the whole canvas.
     pub fn clear(&mut self, c: Rgba) {
         self.pixmap.fill(tiny_skia::Color::from_rgba8(c.0, c.1, c.2, c.3));

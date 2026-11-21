@@ -688,7 +688,7 @@ fn multi_robot_prioritized() -> std::io::Result<()> {
         Vec2::new(18.75, 1.25),
         Vec2::new(1.25, 10.75),
     ];
-    let plans = prioritized_plan(&sc.map, &starts, &goals, 0.3, 0.5, 400).expect("plans");
+    let plans = prioritized_plan(&sc.map, &starts, &goals, 0.3, 0.5, 0.5, 400).expect("plans");
     let t_end = plans.iter().map(|p| p.points.len()).max().unwrap();
     let (w, h) = (800u32, 520u32);
     let mut gif = GifWriter::create(format!("{OUT}/multi_robot_prioritized.gif"), w, h)?;

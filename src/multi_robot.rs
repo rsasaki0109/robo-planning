@@ -232,15 +232,19 @@ impl PartialOrd for Node {
 
 /// Prioritized planning: robots are planned in the given order with space-time
 /// A* (4-connected moves plus waiting, one cell per step) while respecting the
-/// cells and edge swaps reserved by earlier robots. A robot that has arrived
-/// keeps its goal cell reserved. Returns `None` if some robot finds no plan
-/// within `max_t` steps.
+/// cells and edge swaps reserved by earlier robots. Each reserved cell also
+/// blocks every cell whose centre is closer than `separation_m` (use twice the
+/// robot radius plus a margin when robots are larger than a cell; anything up
+/// to `cell_m` reserves just the cell). A robot that has arrived keeps its goal
+/// reserved. Returns `None` if some robot finds no plan within `max_t` steps.
+#[allow(clippy::too_many_arguments)]
 pub fn prioritized_plan(
     map: &Map2D,
     starts: &[Vec2],
     goals: &[Vec2],
     radius_m: f64,
     cell_m: f64,
+    separation_m: f64,
     max_t: usize,
 ) -> Option<Vec<TimedPath>> {
     let grid = OccupancyGrid::from_map(map, cell_m, radius_m);
@@ -248,6 +252,16 @@ pub fn prioritized_plan(
     let mut vertex: HashSet<((i64, i64), usize)> = HashSet::new();
     let mut edge: HashSet<EdgeAt> = HashSet::new();
     let mut parked: HashMap<(i64, i64), usize> = HashMap::new(); // goal cell -> time from which it is occupied
+                                                                 // cell offsets closer than the separation
+    let reach = (separation_m / cell_m).ceil() as i64;
+    let mut footprint = Vec::new();
+    for dx in -reach..=reach {
+        for dy in -reach..=reach {
+            if dx == 0 && dy == 0 || (((dx * dx + dy * dy) as f64).sqrt() * cell_m) < separation_m - 1e-9 {
+                footprint.push((dx, dy));
+            }
+        }
+    }
     let mut out = Vec::new();
     for (s, g) in starts.iter().zip(goals) {
         let (sc, gc) = (cell(*s)?, cell(*g)?);
@@ -300,12 +314,24 @@ pub fn prioritized_plan(
         }
         cells.reverse();
         for w in cells.windows(2) {
-            vertex.insert(w[1]);
+            for d in &footprint {
+                vertex.insert(((w[1].0 .0 + d.0, w[1].0 .1 + d.1), w[1].1));
+                // robots larger than a cell also occupy the cell they leave
+                if separation_m > cell_m {
+                    vertex.insert(((w[0].0 .0 + d.0, w[0].0 .1 + d.1), w[1].1));
+                }
+            }
             edge.insert((w[0].0, w[1].0, w[0].1));
         }
-        vertex.insert(cells[0]);
+        for d in &footprint {
+            vertex.insert(((cells[0].0 .0 + d.0, cells[0].0 .1 + d.1), cells[0].1));
+        }
         let (goal_cell, arrive) = *cells.last().unwrap();
-        parked.insert(goal_cell, arrive);
+        for d in &footprint {
+            let c = (goal_cell.0 + d.0, goal_cell.1 + d.1);
+            let t0 = parked.get(&c).map_or(arrive, |&t| t.min(arrive));
+            parked.insert(c, t0);
+        }
         out.push(TimedPath {
             points: cells
                 .iter()
@@ -361,7 +387,7 @@ mod tests {
         // two robots swap ends of a corridor with one side pocket
         let starts = [Vec2::new(0.25, 0.75), Vec2::new(5.75, 0.75)];
         let goals = [Vec2::new(5.75, 0.75), Vec2::new(0.25, 0.75)];
-        let plans = prioritized_plan(&map, &starts, &goals, 0.2, 0.5, 200).expect("plans");
+        let plans = prioritized_plan(&map, &starts, &goals, 0.2, 0.5, 0.4, 200).expect("plans");
         let len = plans.iter().map(|p| p.points.len()).max().unwrap();
         for t in 0..len {
             let a = plans[0].points[t.min(plans[0].points.len() - 1)];
@@ -370,5 +396,29 @@ mod tests {
         }
         assert!(plans[0].points.last().unwrap().dist(goals[0]) < 0.3);
         assert!(plans[1].points.last().unwrap().dist(goals[1]) < 0.3);
+    }
+
+    #[test]
+    fn large_robots_keep_their_separation_on_a_fine_grid() {
+        // 0.8 m robots on a 0.5 m grid swapping corners through the middle
+        let map = Map2D::new(Vec2::new(-3.0, -3.0), Vec2::new(3.0, 3.0));
+        let starts = [
+            Vec2::new(-1.75, -1.75),
+            Vec2::new(1.75, 1.75),
+            Vec2::new(-1.75, 1.75),
+            Vec2::new(1.75, -1.75),
+        ];
+        let goals: Vec<Vec2> = starts.iter().map(|s| Vec2::new(-s.x, -s.y)).collect();
+        let plans = prioritized_plan(&map, &starts, &goals, 0.4, 0.5, 0.9, 300).expect("plans");
+        let len = plans.iter().map(|p| p.points.len()).max().unwrap();
+        let at = |p: &TimedPath, t: usize| p.points[t.min(p.points.len() - 1)];
+        for t in 0..len {
+            for i in 0..4 {
+                for j in i + 1..4 {
+                    let d = at(&plans[i], t).dist(at(&plans[j], t));
+                    assert!(d >= 0.9 - 1e-9, "robots {i},{j} {d:.2} m apart at step {t}");
+                }
+            }
+        }
     }
 }

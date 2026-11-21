@@ -540,9 +540,191 @@ fn pick_place() -> std::io::Result<()> {
     Ok(())
 }
 
+/// Parallel parking: Hybrid A* with reversing (Reeds-Shepp shots).
+fn parallel_parking() -> std::io::Result<()> {
+    let map = Map2D::new(Vec2::new(0.0, -1.0), Vec2::new(30.0, 12.0))
+        .rect(0.0, -1.0, 30.0, 0.2)
+        .rect(3.0, 0.2, 7.4, 2.2)
+        .rect(8.0, 0.2, 12.4, 2.2)
+        .rect(18.6, 0.2, 23.0, 2.2)
+        .rect(23.6, 0.2, 28.0, 2.2)
+        .rect(0.0, 10.0, 30.0, 12.0);
+    let cfg = hybrid_astar::HybridAStarConfig {
+        min_turn_radius_m: 4.0,
+        footprint_radius_m: 0.95,
+        footprint_front_offset_m: 2.0,
+        allow_reverse: true,
+        xy_resolution_m: 0.3,
+        ..Default::default()
+    };
+    let start = Pose2::new(4.0, 6.0, 0.0);
+    let goal = Pose2::new(14.2, 1.2, 0.0);
+    let res = hybrid_astar::plan(&map, start, goal, &cfg).expect("parking plan");
+    let (w, h) = (840u32, 440u32);
+    let mut gif = GifWriter::create(format!("{OUT}/parallel_parking.gif"), w, h)?;
+    let v = View::fit(map.min, map.max, 10.0, 40.0, 820.0, 390.0);
+    let pts: Vec<Vec2> = res.poses.iter().map(|p| p.pos()).collect();
+    let cusps = res.directions.windows(2).filter(|w| w[0] != w[1]).count();
+    let n = res.poses.len();
+    let frames = 110;
+    for f in 0..(frames + 15) {
+        let k = (n - 1) * f.min(frames) / frames;
+        let mut c = Canvas::new(w, h);
+        title(
+            &mut c,
+            &format!("PARALLEL PARKING: HYBRID A* + REEDS-SHEPP, {cusps} CUSPS"),
+        );
+        c.map(&v, &map);
+        for (i, w2) in pts.windows(2).enumerate() {
+            let col = if res.directions[i] < 0.0 {
+                colors::RED
+            } else {
+                colors::BLUE
+            };
+            c.polyline(&v, w2, col.alpha(160), 2.0);
+        }
+        c.arrow(&v, goal, 2.5, colors::GREEN, 2.5);
+        let p = res.poses[k];
+        let centre = Pose2::new(
+            p.x + 1.0 * p.theta_rad.cos(),
+            p.y + 1.0 * p.theta_rad.sin(),
+            p.theta_rad,
+        );
+        let reversing = res.directions[k] < 0.0;
+        c.oriented_box(&v, centre, 4.0, 1.8, if reversing { colors::RED } else { colors::BLUE });
+        c.arrow(&v, p, 2.0, colors::WHITE, 2.0);
+        c.label(
+            w as f32 - 200.0,
+            44.0,
+            if reversing { "REVERSE" } else { "FORWARD" },
+            2.5,
+            if reversing { colors::RED } else { colors::BLUE },
+        );
+        gif.frame(&c, DELAY)?;
+    }
+    Ok(())
+}
+
+/// Ten robots swap places across a circle with reciprocal avoidance.
+fn multi_robot_rvo() -> std::io::Result<()> {
+    use robo_planning::multi_robot::{Agent, RvoConfig, RvoSim};
+    let n = 10;
+    let map = Map2D::new(Vec2::new(0.0, 0.0), Vec2::new(12.0, 12.0)).circle(6.0, 6.0, 0.8);
+    let agents = (0..n)
+        .map(|i| {
+            let th = 2.0 * std::f64::consts::PI * i as f64 / n as f64;
+            let p = Vec2::new(6.0 + 5.0 * th.cos(), 6.0 + 5.0 * th.sin());
+            Agent {
+                pos: p,
+                vel: Vec2::default(),
+                goal: Vec2::new(12.0, 12.0) - p,
+                radius_m: 0.35,
+                v_max_mps: 1.2,
+            }
+        })
+        .collect();
+    let mut sim = RvoSim {
+        agents,
+        map: map.clone(),
+        cfg: RvoConfig::default(),
+    };
+    let starts: Vec<Vec2> = sim.agents.iter().map(|a| a.pos).collect();
+    let mut trails: Vec<Vec<Vec2>> = starts.iter().map(|p| vec![*p]).collect();
+    let (w, h) = (560u32, 600u32);
+    let mut gif = GifWriter::create(format!("{OUT}/multi_robot_rvo.gif"), w, h)?;
+    let v = View::fit(map.min, map.max, 10.0, 40.0, 540.0, 550.0);
+    let mut min_gap = f64::INFINITY;
+    for k in 0..900 {
+        min_gap = min_gap.min(sim.step());
+        for (t, a) in trails.iter_mut().zip(&sim.agents) {
+            t.push(a.pos);
+        }
+        let done = sim.arrived(0.05);
+        if k % 4 == 0 || done {
+            let mut c = Canvas::new(w, h);
+            title(
+                &mut c,
+                &format!("10 ROBOTS SWAP: RECIPROCAL AVOIDANCE, GAP {:.2} M", min_gap.max(0.0)),
+            );
+            c.map(&v, &map);
+            for (i, (t, a)) in trails.iter().zip(&sim.agents).enumerate() {
+                c.polyline(&v, t, colors::series(i).alpha(120), 1.5);
+                c.ring_px(
+                    v.px(a.goal).0,
+                    v.px(a.goal).1,
+                    a.radius_m as f32 * v.scale(),
+                    colors::series(i),
+                    1.5,
+                );
+                c.disc_robot(
+                    &v,
+                    Pose2::new(a.pos.x, a.pos.y, a.vel.y.atan2(a.vel.x)),
+                    a.radius_m,
+                    colors::series(i),
+                );
+            }
+            gif.frame(&c, DELAY)?;
+        }
+        if done {
+            break;
+        }
+    }
+    Ok(())
+}
+
+/// Four AMRs cross a warehouse with prioritized space-time A*.
+fn multi_robot_prioritized() -> std::io::Result<()> {
+    use robo_planning::multi_robot::prioritized_plan;
+    let sc = scenes::warehouse();
+    let starts = [
+        Vec2::new(1.25, 1.25),
+        Vec2::new(18.75, 10.75),
+        Vec2::new(1.25, 10.75),
+        Vec2::new(18.75, 1.25),
+    ];
+    let goals = [
+        Vec2::new(18.75, 10.75),
+        Vec2::new(1.25, 1.25),
+        Vec2::new(18.75, 1.25),
+        Vec2::new(1.25, 10.75),
+    ];
+    let plans = prioritized_plan(&sc.map, &starts, &goals, 0.3, 0.5, 400).expect("plans");
+    let t_end = plans.iter().map(|p| p.points.len()).max().unwrap();
+    let (w, h) = (800u32, 520u32);
+    let mut gif = GifWriter::create(format!("{OUT}/multi_robot_prioritized.gif"), w, h)?;
+    let v = View::fit(sc.map.min, sc.map.max, 10.0, 40.0, 780.0, 470.0);
+    let sub = 3; // interpolated frames per grid step
+    for f in 0..(t_end * sub + 12) {
+        let tf = (f as f64 / sub as f64).min((t_end - 1) as f64);
+        let mut c = Canvas::new(w, h);
+        title(&mut c, "4 AMRS: PRIORITIZED SPACE-TIME A* (ORDER 1-4)");
+        c.map(&v, &sc.map);
+        for (i, p) in plans.iter().enumerate() {
+            c.polyline(&v, &p.points, colors::series(i).alpha(90), 2.0);
+            let k = (tf as usize).min(p.points.len() - 1);
+            let k2 = (k + 1).min(p.points.len() - 1);
+            let u = tf - tf.floor();
+            let pos = p.points[k].lerp(p.points[k2], if k2 > k { u } else { 0.0 });
+            c.dot(&v, goals[i], 6.0, colors::series(i));
+            c.disc(&v, pos, 0.3, colors::series(i));
+            let (x, y) = v.px(pos);
+            c.text(x - 4.0, y - 6.0, &format!("{}", i + 1), 1.6, colors::WHITE);
+        }
+        c.text(
+            w as f32 - 150.0,
+            46.0,
+            &format!("STEP {:3}", tf as usize),
+            1.6,
+            colors::INK,
+        );
+        gif.frame(&c, DELAY)?;
+    }
+    Ok(())
+}
+
 fn main() -> std::io::Result<()> {
     type Job = fn() -> std::io::Result<()>;
-    let jobs: [(&str, Job); 7] = [
+    let jobs: [(&str, Job); 10] = [
         ("goal_reaching", goal_reaching),
         ("charging", charging),
         ("cleaning", cleaning),
@@ -550,6 +732,9 @@ fn main() -> std::io::Result<()> {
         ("follow", follow),
         ("parking", parking),
         ("pick_place", pick_place),
+        ("parallel_parking", parallel_parking),
+        ("multi_robot_rvo", multi_robot_rvo),
+        ("multi_robot_prioritized", multi_robot_prioritized),
     ];
     let only: Vec<String> = std::env::args().skip(1).collect();
     for (name, job) in jobs {

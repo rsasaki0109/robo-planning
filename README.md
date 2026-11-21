@@ -19,8 +19,10 @@ different controllers.
 | **Cleaning**: boustrophedon coverage sweeps linked by A* transfers | **Patrol**: visiting order by nearest neighbour + 2-opt over A* costs |
 | ![follow](docs/media/follow.gif) | ![parking](docs/media/parking.gif) |
 | **Following a moving target**: A* replanning at 2 Hz | **Parking**: Hybrid A* for a car with a 4 m turning radius |
-| ![pick and place](docs/media/pick_place.gif) | |
-| **Pick and place**: collision-aware IK + joint-space RRT-Connect for a 3-link arm | |
+| ![pick and place](docs/media/pick_place.gif) | ![parallel parking](docs/media/parallel_parking.gif) |
+| **Pick and place**: collision-aware IK + joint-space RRT-Connect for a 3-link arm | **Parallel parking**: Hybrid A* with reversing and Reeds-Shepp analytic shots (red = reverse) |
+| ![multi-robot rvo](docs/media/multi_robot_rvo.gif) | ![multi-robot prioritized](docs/media/multi_robot_prioritized.gif) |
+| **Many robots, decentralised**: 10 robots swap across a circle around an obstacle with sampled reciprocal velocity obstacles and a pass-on-the-right preference; no contact | **Many robots, centralised**: 4 AMRs cross the warehouse with prioritized space-time A* (cells and edge swaps reserved in priority order) |
 
 ```bash
 cargo run --release --features render --example task_gallery            # all GIFs -> out/tasks/
@@ -37,7 +39,8 @@ cargo run --release --example planner_gallery                           # SVG fi
 | Charging / docking | diff drive | `docking` | charger choice by path cost, pre-dock pose, aligned final approach |
 | Cleaning / mowing / inspection | diff drive | `coverage` | boustrophedon coverage, coverage ratio |
 | Patrol / delivery rounds | any mobile robot | `tour` | nearest neighbour + 2-opt over A* costs |
-| Parking / on-road manoeuvres | car-like | `dubins`, `hybrid_astar` | Dubins curves, Hybrid A* with Dubins analytic expansion |
+| Parking / on-road manoeuvres | car-like | `dubins`, `reeds_shepp`, `hybrid_astar` | Dubins curves, Reeds-Shepp curves (forward and reverse), Hybrid A* with optional reversing and Dubins / Reeds-Shepp analytic expansion |
+| Fleets / crowds | many mobile robots | `multi_robot` | sampled reciprocal velocity obstacles (decentralised), prioritized space-time A* (centralised) |
 | Pick and place | planar serial arm | `arm` | FK, Jacobian, DLS IK, collision-aware IK, joint-space `StateSpace` |
 | Reactive local avoidance | diff drive | `dwa` | Dynamic Window Approach |
 | Turning paths into references | all | `trajectory` | cubic / arc-length splines, quintic polynomials, trapezoidal profiles, curvature- and accel-limited time-parameterisation, joint trajectories |

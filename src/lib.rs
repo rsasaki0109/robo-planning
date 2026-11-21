@@ -22,6 +22,8 @@ pub mod dwa;
 pub mod geometry;
 pub mod grid;
 pub mod hybrid_astar;
+pub mod multi_robot;
+pub mod reeds_shepp;
 #[cfg(feature = "render")]
 pub mod render;
 pub mod rng;

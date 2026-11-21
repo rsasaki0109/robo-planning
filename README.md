@@ -2,7 +2,7 @@
 
 Motion planning algorithms organised by **task** and **robot type**, in deterministic
 Rust with no required dependencies. Companion of
-[robo-control](https://github.com/rsasaki0109/robo-control), which simulates each
+[robo-control](https://github.com/rsasaki0109/robot-control), which simulates each
 robot body (wheeled, legged, humanoid, arm, drone) tracking these plans with
 different controllers.
 

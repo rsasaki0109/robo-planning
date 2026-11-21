@@ -5,7 +5,7 @@ edition = "2021"
 rust-version = "1.85"
 description = "Motion planning algorithms organised by robot type and task: grid search, sampling-based, nonholonomic, arm, local planning and trajectory generation."
 license = "MIT OR Apache-2.0"
-repository = "https://github.com/rsasaki0109/robo-planning"
+repository = "https://github.com/rsasaki0109/robot-planning"
 
 [lib]
 name = "robo_planning"

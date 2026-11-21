@@ -183,6 +183,9 @@ impl RvoSim {
     }
 }
 
+/// A grid edge `(from, to)` traversed starting at a time step.
+type EdgeAt = ((i64, i64), (i64, i64), usize);
+
 /// Space-time path of one robot: cell centre per time step (waits repeat a cell).
 #[derive(Debug, Clone, PartialEq)]
 pub struct TimedPath {
@@ -227,7 +230,7 @@ pub fn prioritized_plan(
     let grid = OccupancyGrid::from_map(map, cell_m, radius_m);
     let cell = |p: Vec2| grid.cell_of(p).map(|(x, y)| (x as i64, y as i64));
     let mut vertex: HashSet<((i64, i64), usize)> = HashSet::new();
-    let mut edge: HashSet<((i64, i64), (i64, i64), usize)> = HashSet::new();
+    let mut edge: HashSet<EdgeAt> = HashSet::new();
     let mut parked: HashMap<(i64, i64), usize> = HashMap::new(); // goal cell -> time from which it is occupied
     let mut out = Vec::new();
     for (s, g) in starts.iter().zip(goals) {

@@ -77,6 +77,8 @@ pub struct GridPath {
     pub cost_m: f64,
     /// number of expanded nodes
     pub expanded: usize,
+    /// expanded cell centres in expansion order (for visualising the search)
+    pub expanded_cells: Vec<Vec2>,
 }
 
 #[derive(PartialEq)]
@@ -126,12 +128,14 @@ pub fn search(grid: &OccupancyGrid, start: Vec2, goal: Vec2, w: f64) -> Option<G
         idx: s,
     });
     let mut expanded = 0;
+    let mut expanded_cells = Vec::new();
     while let Some(Node { idx, .. }) = open.pop() {
         if closed[idx] {
             continue;
         }
         closed[idx] = true;
         expanded += 1;
+        expanded_cells.push(grid.cell_center(idx % grid.width, idx / grid.width));
         if idx == goal_idx {
             break;
         }
@@ -180,6 +184,7 @@ pub fn search(grid: &OccupancyGrid, start: Vec2, goal: Vec2, w: f64) -> Option<G
         points,
         cost_m: g[goal_idx],
         expanded,
+        expanded_cells,
     })
 }
 

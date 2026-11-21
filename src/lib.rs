@@ -15,15 +15,20 @@
 //! seeded [`rng::Rng`]) and needs no renderer; [`svg`] writes plain SVG figures.
 
 pub mod arm;
+pub mod coverage;
+pub mod docking;
 pub mod dubins;
 pub mod dwa;
 pub mod geometry;
 pub mod grid;
 pub mod hybrid_astar;
+#[cfg(feature = "render")]
+pub mod render;
 pub mod rng;
 pub mod sampling;
 pub mod scenes;
 pub mod svg;
+pub mod tour;
 pub mod trajectory;
 
 pub use geometry::{Map2D, Obstacle, Pose2, Vec2};

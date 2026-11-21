@@ -1,46 +1,70 @@
 # robo-planning
 
-Motion planning algorithms organised by **robot type and task**, in dependency-free,
-deterministic Rust. Companion of [robo-control](https://github.com/rsasaki0109/robo-control),
-which simulates robots tracking these plans with different controllers.
+Motion planning algorithms organised by **task** and **robot type**, in deterministic
+Rust with no required dependencies. Companion of
+[robo-control](https://github.com/rsasaki0109/robo-control), which simulates each
+robot body (wheeled, legged, humanoid, arm, drone) tracking these plans with
+different controllers.
 
-ロボットの機種・タスクごとに使い分けられる経路計画アルゴリズム集です。
+ロボットのタスク（ゴール到達・充電・掃除・巡回・追従・駐車・ピック&プレース）ごとに
+使い分けられる経路計画アルゴリズム集です。
 
-| Robot / task | Module | Algorithms |
-|---|---|---|
-| Holonomic / differential drive on a map | `grid` | Dijkstra, A*, weighted A*, line-of-sight pruning |
-| Any configuration space (point robot, arm joints, ...) | `sampling` | RRT, RRT*, RRT-Connect, PRM, shortcut smoothing |
-| Car-like (minimum turning radius) | `dubins`, `hybrid_astar` | Dubins curves, Hybrid A* with Dubins analytic expansion |
-| Planar serial arm | `arm` | FK, Jacobian, DLS IK, collision-aware IK, joint-space `StateSpace` |
-| Differential drive, reactive | `dwa` | Dynamic Window Approach |
-| All | `trajectory` | natural cubic spline, 2D arc-length spline, quintic polynomial, trapezoidal profile, curvature/accel-limited time-parameterisation, joint trajectories |
-| Benchmarks | `scenes` | warehouse (AMR), parking lot (car), forest (quadrotor x-z), arm work cell |
-
-Sampling planners are generic over the `StateSpace` trait, so adding a new robot
-means implementing `sample / distance / interpolate / is_valid` once.
-
-## Gallery
-
-```bash
-cargo run --release --example planner_gallery   # writes out/planning/*.svg + README.md
-```
+## Gallery by task
 
 | | |
-|---|---|
-| ![](docs/media/warehouse_all.svg) | ![](docs/media/parking_hybrid_astar.svg) |
-| Warehouse AMR: Dijkstra / A* / RRT / RRT* / RRT-Connect / PRM | Car: Hybrid A* into a parking bay |
-| ![](docs/media/arm_rrt_connect.svg) | ![](docs/media/forest_rrt_star.svg) |
-| 3-link arm: collision-aware IK + joint-space RRT-Connect | Planar quadrotor: RRT* + shortcut + spline |
+|:---:|:---:|
+| ![goal reaching](docs/media/goal_reaching.gif) | ![charging](docs/media/charging.gif) |
+| **Goal reaching**: Dijkstra / A* expand cells, RRT / RRT* grow trees, then each robot drives its path | **Charging**: choose the charger with the cheapest A* path, approach the pre-dock pose, dock straight and aligned |
+| ![cleaning](docs/media/cleaning.gif) | ![patrol](docs/media/patrol.gif) |
+| **Cleaning**: boustrophedon coverage sweeps linked by A* transfers | **Patrol**: visiting order by nearest neighbour + 2-opt over A* costs |
+| ![follow](docs/media/follow.gif) | ![parking](docs/media/parking.gif) |
+| **Following a moving target**: A* replanning at 2 Hz | **Parking**: Hybrid A* for a car with a 4 m turning radius |
+| ![pick and place](docs/media/pick_place.gif) | |
+| **Pick and place**: collision-aware IK + joint-space RRT-Connect for a 3-link arm | |
+
+```bash
+cargo run --release --features render --example task_gallery            # all GIFs -> out/tasks/
+cargo run --release --features render --example task_gallery parking    # just one
+cargo run --release --example planner_gallery                           # SVG figures + table -> out/planning/
+```
+
+## Which planner for which task?
+
+| Task | Robot | Module | Algorithms |
+|---|---|---|---|
+| Goal reaching | AMR / diff drive / holonomic | `grid` | Dijkstra, A*, weighted A*, line-of-sight pruning |
+| Goal reaching in any C-space | point robot, arm joints, ... | `sampling` | RRT, RRT*, RRT-Connect, PRM, shortcut smoothing |
+| Charging / docking | diff drive | `docking` | charger choice by path cost, pre-dock pose, aligned final approach |
+| Cleaning / mowing / inspection | diff drive | `coverage` | boustrophedon coverage, coverage ratio |
+| Patrol / delivery rounds | any mobile robot | `tour` | nearest neighbour + 2-opt over A* costs |
+| Parking / on-road manoeuvres | car-like | `dubins`, `hybrid_astar` | Dubins curves, Hybrid A* with Dubins analytic expansion |
+| Pick and place | planar serial arm | `arm` | FK, Jacobian, DLS IK, collision-aware IK, joint-space `StateSpace` |
+| Reactive local avoidance | diff drive | `dwa` | Dynamic Window Approach |
+| Turning paths into references | all | `trajectory` | cubic / arc-length splines, quintic polynomials, trapezoidal profiles, curvature- and accel-limited time-parameterisation, joint trajectories |
+| Benchmarks | all | `scenes` | warehouse (AMR), parking lot (car), forest (quadrotor x-z), arm work cell |
+
+Sampling planners are generic over the `StateSpace` trait, so a new robot only
+needs `sample / distance / interpolate / is_valid`.
+
+| | |
+|:---:|:---:|
+| ![](docs/media/warehouse_all.svg) | ![](docs/media/arm_rrt_connect.svg) |
+| All warehouse planners overlaid (`planner_gallery`) | Arm sweep along the joint-space plan |
+
+## Features
+
+- default: planners only, no dependencies.
+- `render`: raster drawing (`tiny-skia`) and animated GIF output (`gif`) in `robo_planning::render`, also used by robo-control.
 
 ## Development
 
 ```bash
 cargo fmt --all
-cargo clippy --all-targets -- -D warnings
-cargo test
+cargo clippy --all-targets --all-features -- -D warnings
+cargo test --all-features
 ```
 
-All randomness comes from a seeded `rng::Rng`, so every planner is reproducible.
+All randomness comes from a seeded `rng::Rng`, so every planner and GIF is reproducible.
 
 ## License
 

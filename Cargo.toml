@@ -11,6 +11,17 @@ repository = "https://github.com/rsasaki0109/robo-planning"
 name = "robo_planning"
 
 [dependencies]
+tiny-skia = { version = "0.11", optional = true, default-features = false, features = ["std", "simd"] }
+gif = { version = "0.13", optional = true }
 
 [profile.release]
 debug = false
+
+[features]
+default = []
+# Raster rendering and animated GIF output (adds tiny-skia and gif).
+render = ["dep:tiny-skia", "dep:gif"]
+
+[[example]]
+name = "task_gallery"
+required-features = ["render"]

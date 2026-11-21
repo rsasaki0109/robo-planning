@@ -185,6 +185,8 @@ impl RvoSim {
 
 /// A grid edge `(from, to)` traversed starting at a time step.
 type EdgeAt = ((i64, i64), (i64, i64), usize);
+/// A grid cell at a time step.
+type CellAt = ((i64, i64), usize);
 
 /// Space-time path of one robot: cell centre per time step (waits repeat a cell).
 #[derive(Debug, Clone, PartialEq)]
@@ -238,7 +240,7 @@ pub fn prioritized_plan(
         let h = |c: (i64, i64)| ((c.0 - gc.0).abs() + (c.1 - gc.1).abs()) as f64;
         let blocked = |c: (i64, i64), t: usize| vertex.contains(&(c, t)) || parked.get(&c).is_some_and(|&t0| t >= t0);
         let mut open = BinaryHeap::new();
-        let mut parent: HashMap<((i64, i64), usize), ((i64, i64), usize)> = HashMap::new();
+        let mut parent: HashMap<CellAt, CellAt> = HashMap::new();
         let mut seen: HashSet<((i64, i64), usize)> = HashSet::new();
         open.push(Node {
             f: h(sc),

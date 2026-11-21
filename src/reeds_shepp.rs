@@ -113,6 +113,8 @@ fn polar(x: f64, y: f64) -> (f64, f64) {
 }
 
 type Word = (Vec<f64>, Vec<Steer>);
+/// A path family solver in normalised coordinates.
+type Family = fn(f64, f64, f64) -> Option<Word>;
 
 fn lsl(x: f64, y: f64, phi: f64) -> Option<Word> {
     let (u, t) = polar(x - phi.sin(), y - 1.0 + phi.cos());
@@ -280,7 +282,7 @@ pub fn candidates(start: Pose2, goal: Pose2, radius_m: f64) -> Vec<RsPath> {
     let x = (c * dx + s * dy) / radius_m;
     let y = (-s * dx + c * dy) / radius_m;
     let phi = m2p(goal.theta_rad - start.theta_rad);
-    let fns: [fn(f64, f64, f64) -> Option<Word>; 11] = [
+    let fns: [Family; 11] = [
         lsl,
         lsr,
         lxrxl,

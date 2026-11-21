@@ -97,8 +97,33 @@ pub struct RvoSim {
 impl RvoSim {
     /// Advances all robots by one step; returns the smallest pairwise gap
     /// (distance minus radii) after the step.
-    #[allow(clippy::needless_range_loop)]
     pub fn step(&mut self) -> f64 {
+        let new_vel = self.velocities();
+        for (a, v) in self.agents.iter_mut().zip(new_vel) {
+            a.vel = v;
+            a.pos = a.pos + v * self.cfg.dt_s;
+        }
+        self.min_gap()
+    }
+
+    /// Smallest pairwise gap (distance minus radii).
+    pub fn min_gap(&self) -> f64 {
+        let n = self.agents.len();
+        let mut gap = f64::INFINITY;
+        for i in 0..n {
+            for j in i + 1..n {
+                let (a, b) = (&self.agents[i], &self.agents[j]);
+                gap = gap.min(a.pos.dist(b.pos) - a.radius_m - b.radius_m);
+            }
+        }
+        gap
+    }
+
+    /// The velocity each robot picks now, without moving anyone. Use it to
+    /// command real robots: write their measured positions and velocities into
+    /// [`Self::agents`], call this, send the velocities.
+    #[allow(clippy::needless_range_loop)]
+    pub fn velocities(&self) -> Vec<Vec2> {
         let n = self.agents.len();
         let mut new_vel = vec![Vec2::default(); n];
         for i in 0..n {
@@ -163,18 +188,7 @@ impl RvoSim {
             }
             new_vel[i] = best.1;
         }
-        for (a, v) in self.agents.iter_mut().zip(new_vel) {
-            a.vel = v;
-            a.pos = a.pos + v * self.cfg.dt_s;
-        }
-        let mut gap = f64::INFINITY;
-        for i in 0..n {
-            for j in i + 1..n {
-                let (a, b) = (&self.agents[i], &self.agents[j]);
-                gap = gap.min(a.pos.dist(b.pos) - a.radius_m - b.radius_m);
-            }
-        }
-        gap
+        new_vel
     }
 
     /// Whether every robot is within `tol_m` of its goal.

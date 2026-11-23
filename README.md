@@ -44,7 +44,7 @@ cargo run --release --example planner_gallery                           # SVG fi
 | Parking / on-road manoeuvres | car-like | `dubins`, `reeds_shepp`, `hybrid_astar` | Dubins curves, Reeds-Shepp curves (forward and reverse), Hybrid A* with optional reversing and Dubins / Reeds-Shepp analytic expansion |
 | Fleets / crowds | many mobile robots | `multi_robot` | sampled reciprocal velocity obstacles (decentralised), prioritized space-time A* (centralised) |
 | Pick and place | planar serial arm | `arm` | FK, Jacobian, DLS IK, collision-aware IK, joint-space `StateSpace` |
-| Reactive local avoidance | diff drive | `dwa` | Dynamic Window Approach |
+| Reactive local avoidance | diff drive | `dwa` | Dynamic Window Approach; `plan_with_movers` checks each rollout step against constant-velocity predictions of moving discs (people, carts) |
 | Turning paths into references | all | `trajectory` | cubic / arc-length splines, quintic polynomials, trapezoidal profiles, curvature- and accel-limited time-parameterisation, joint trajectories |
 | Benchmarks | all | `scenes` | warehouse (AMR), parking lot (car), forest (quadrotor x-z), arm work cell |
 

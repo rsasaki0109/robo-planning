@@ -84,8 +84,34 @@ pub fn rollout(p: Pose2, v: f64, w: f64, dt: f64, steps: usize) -> Vec<Pose2> {
     out
 }
 
+/// A moving disc obstacle, predicted at constant velocity.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct MovingDisc {
+    /// position now
+    pub pos: Vec2,
+    /// velocity
+    pub vel: Vec2,
+    /// radius [m]
+    pub radius_m: f64,
+}
+
 /// Picks the best (v, w) in the dynamic window around the current velocity.
 pub fn plan(map: &Map2D, pose: Pose2, v_now: f64, w_now: f64, goal: Vec2, cfg: &DwaConfig) -> Option<DwaCommand> {
+    plan_with_movers(map, &[], pose, v_now, w_now, goal, cfg)
+}
+
+/// [`plan`] among moving discs: the rollout pose at step `k` is checked
+/// against each disc's predicted position at step `k`, so the robot can step
+/// aside from someone walking towards it instead of freezing in their way.
+pub fn plan_with_movers(
+    map: &Map2D,
+    movers: &[MovingDisc],
+    pose: Pose2,
+    v_now: f64,
+    w_now: f64,
+    goal: Vec2,
+    cfg: &DwaConfig,
+) -> Option<DwaCommand> {
     let v_lo = cfg.v_min_mps.max(v_now - cfg.a_max_mps2 * cfg.dt_s);
     let v_hi = cfg.v_max_mps.min(v_now + cfg.a_max_mps2 * cfg.dt_s);
     let w_lo = (-cfg.w_max_radps).max(w_now - cfg.alpha_max_radps2 * cfg.dt_s);
@@ -99,7 +125,14 @@ pub fn plan(map: &Map2D, pose: Pose2, v_now: f64, w_now: f64, goal: Vec2, cfg: &
             let traj = rollout(pose, v, w, cfg.dt_s, steps);
             let clearance = traj
                 .iter()
-                .map(|p| map.clearance(p.pos()))
+                .enumerate()
+                .map(|(k, p)| {
+                    let t = k as f64 * cfg.dt_s;
+                    movers
+                        .iter()
+                        .map(|m| p.pos().dist(m.pos + m.vel * t) - m.radius_m)
+                        .fold(map.clearance(p.pos()), f64::min)
+                })
                 .fold(f64::INFINITY, f64::min)
                 - cfg.robot_radius_m;
             if clearance <= 0.0 {
@@ -134,6 +167,33 @@ pub fn plan(map: &Map2D, pose: Pose2, v_now: f64, w_now: f64, goal: Vec2, cfg: &
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn steps_aside_from_an_oncoming_mover() {
+        let map = Map2D::new(Vec2::new(0.0, -5.0), Vec2::new(20.0, 5.0));
+        let cfg = DwaConfig {
+            v_min_mps: -0.3,
+            ..DwaConfig::default()
+        };
+        let goal = Vec2::new(18.0, 0.0);
+        let (mut p, mut v, mut w) = (Pose2::new(1.0, 0.0, 0.0), 0.0, 0.0);
+        let mut min_gap = f64::INFINITY;
+        for k in 0..300 {
+            let t = k as f64 * cfg.dt_s;
+            // walks straight down the robot's line at 0.8 m/s
+            let m = MovingDisc {
+                pos: Vec2::new(12.0 - 0.8 * t, 0.0),
+                vel: Vec2::new(-0.8, 0.0),
+                radius_m: 0.3,
+            };
+            min_gap = min_gap.min(p.pos().dist(m.pos) - m.radius_m - cfg.robot_radius_m);
+            let c = plan_with_movers(&map, &[m], p, v, w, goal, &cfg).expect("a command");
+            (v, w) = (c.v_mps, c.w_radps);
+            p = c.rollout[1];
+        }
+        assert!(min_gap > 0.0, "min gap {min_gap}");
+        assert!(p.pos().dist(goal) < 1.0, "{p:?}");
+    }
 
     #[test]
     fn reaches_goal_without_collision() {

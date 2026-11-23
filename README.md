@@ -9,6 +9,8 @@ different controllers.
 ロボットのタスク（ゴール到達・充電・掃除・巡回・追従・駐車・ピック&プレース）ごとに
 使い分けられる経路計画アルゴリズム集です。
 
+![robo-planning hero](docs/media/hero.gif)
+
 ## Gallery by task
 
 | | |
@@ -68,6 +70,13 @@ cargo test --all-features
 ```
 
 All randomness comes from a seeded `rng::Rng`, so every planner and GIF is reproducible.
+
+The hero GIF at the top tiles the gallery GIFs in `docs/media/` (needs Pillow; see the
+script's docstring for the arguments):
+
+```bash
+python3 scripts/hero_gif.py docs/media/hero.gif "TITLE" docs/media/a.gif:"Caption" ...
+```
 
 ## License
 
